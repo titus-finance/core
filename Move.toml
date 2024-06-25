@@ -1,11 +1,9 @@
 [package]
-name = "move-vol"
+name = "aptvol"
 version = "1.0.0"
-authors = []
 
 [addresses]
-
-[dev-addresses]
+aptvol = "0x1"
 
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-core.git"
