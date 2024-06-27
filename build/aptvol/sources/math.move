@@ -1,3 +1,4 @@
+// https://github.com/ribbon-finance/rvol/blob/ee066ee4b612bb3c647b14cc48983045ec475f8c/contracts/libraries/Math.sol
 module aptvol::math {
     const FIXED_1: u256 = 0x080000000000000000000000000000000;
     const FIXED_2: u256 = 0x100000000000000000000000000000000;
@@ -85,4 +86,28 @@ module aptvol::math {
 
         res
     }
+
+     public fun floorLog2(_n: u256): u8 {
+        let res: u8 = 0;
+        if (_n < 256) {
+            // At most 8 iterations
+            while (_n > 1) {
+                _n =  _n >> 1;
+                res = res + 1;
+            };
+        } else {
+            // Exactly 8 iterations
+            let s: u8 = 128;
+            while (s > 0) {
+                if (_n >= (1 as u256) << s) {
+                    _n = _n >> s;
+                    res = res | s;
+                };
+                s = s >> 1;
+            };
+        };
+        res
+    }
+
+
 }
