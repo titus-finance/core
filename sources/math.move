@@ -109,5 +109,28 @@ module aptvol::math {
         res
     }
 
+     public fun ln(x: u256): u256 {
+        let res: u256 = 0;
+        // If x >= 2, then we compute the integer part of log2(x), which is larger than 0.
+        if (x >= FIXED_2) {
+            let count: u8 = floorLog2(x / FIXED_1);
+            x = x >> count; // now x < 2
+            // note: we cast this to u256 bc unlike solidity, move needs us to have both operands the same type
+            res = (count as u256) * FIXED_1;
+        };
+        // If x > 1, then we compute the fraction part of log2(x), which is larger than 0.
+        if (x > FIXED_1) {
+            let i: u8 = 127;
+            while (i > 0) {
+                x = (x * x) /  FIXED_1; // now 1 < x < 4
+                if (x >= FIXED_2) {
+                    x = x >> 1;
+                    res = res + ((1 as u256) << (i-1))
+                };
+                i = i - 1;
+            };
+        };
+        (res * LOG_E_2) / BASE
+    }
 
 }
