@@ -104,6 +104,7 @@ module aptvol::dsmath {
         sd
     }
 
+    // https://github.com/ribbon-finance/rvol/blob/master/contracts/libraries/Math.sol#L40
      public fun sqrt2(x: u256): u256 {
         let z: u256 = (x + 1) / 2;
         let res = x;
