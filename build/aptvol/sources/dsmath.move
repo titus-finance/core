@@ -104,5 +104,14 @@ module aptvol::dsmath {
         sd
     }
 
+     public fun sqrt2(x: u256): u256 {
+        let z: u256 = (x + 1) / 2;
+        let res = x;
+        while (z < res) {
+            res = z;
+            z = (x / z + z) / 2;
+        };
+        res
+    }
 
 }
