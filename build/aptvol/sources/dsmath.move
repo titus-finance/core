@@ -1,6 +1,7 @@
 // port of https://github.com/ribbon-finance/rvol/blob/master/contracts/libraries/DSMath.sol
 
 module aptvol::dsmath {
+    use std::vector;
     public fun add (x: u256, y:u256): u256 {
         return x + y
     }
@@ -67,4 +68,41 @@ module aptvol::dsmath {
         };
         result
     }
+    // https://github.com/starcoinorg/starcoin-framework/blob/main/sources/Math.move#L56
+    public fun pow(x: u64, y: u64): u128 {
+        let result = 1u128;
+        let z = y;
+        let u = (x as u128);
+        while (z > 0) {
+            if (z % 2 == 1) {
+                result = (u * result as u128);
+            };
+            u = (u * u as u128);
+            z = z / 2;
+        };
+        result
+    }
+
+    public fun std_dev(input: vector<u256>): u256 {
+        let sum: u256 = 0;
+        let i = 0;
+        let input_len = (vector::length(&input) as u256);
+        while (i < input_len) {
+            sum = sum + *vector::borrow(&input,(i as u64));
+            i = i + 1;
+        };
+        let mean: u256 = sum/input_len;
+        sum = 0;
+        i = 0;
+        while (i < input_len) {
+            let mean_sub_from_input = ((*vector::borrow(&input, (i as u64)) - mean) as u256);
+            sum = sum + (pow((mean_sub_from_input as u64),  2) as u256);
+            i = i + 1;
+        };
+
+        let sd = sqrt(sum / (input_len - 1));
+        sd
+    }
+
+
 }
