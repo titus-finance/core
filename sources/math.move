@@ -116,6 +116,7 @@ module aptvol::math {
             let count: u8 = floorLog2(x / FIXED_1);
             x = x >> count; // now x < 2
             // note: we cast this to u256 bc unlike solidity, move needs us to have both operands the same type
+            // see https://github.com/ribbon-finance/rvol/blob/master/contracts/libraries/Math.sol#L218 for original
             res = (count as u256) * FIXED_1;
         };
         // If x > 1, then we compute the fraction part of log2(x), which is larger than 0.
