@@ -15,8 +15,20 @@ module titusvaults::Vault {
     public fun create_vault <CollateralType>(account: &signer) {
         //TODO: ensure the account that is calling create_vault is authorized to do so
         // we'll have a vault per strategy, with differing underlying assets, strike prices etc
+        // we also have to persist &signer's address somewhere for use in deposit/withdraw
         let init_deposits = smart_table::new<address, DepositBalance<CollateralType>>();
         move_to(account, Vault { deposits: init_deposits });
+    }
+
+    // TODO: this accepts Coin<CollateralType> and joins it to the deposit balance
+    // but we may want to store balances in global storage instead of the Coins
+
+    //  TODO:
+    public fun deposit<CollateralType>(account: &signer, amount: Coin<CollateralType>) acquires Vault {
+        // check first if the callee of this function already exists in our vault's deposits
+        let callee_address = signer::address_of(account);
+        // TODO: we need to either hardcode or grab the address of the Vault to borrow_global_mut and coin::join() the deposit amount
+        // to the hashmap of balances
     }
 
 

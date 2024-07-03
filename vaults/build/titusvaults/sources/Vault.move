@@ -19,6 +19,8 @@ module titusvaults::Vault {
         move_to(account, Vault { deposits: init_deposits });
     }
 
+    public fun deposit<CollateralType>(account: &signer) {}
+
 
     #[test]
 fun test_deposit() {
