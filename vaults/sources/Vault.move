@@ -5,7 +5,7 @@ module titusvaults::Vault {
     use std::smart_table::{Self, SmartTable};
 
     struct Vault <phantom CollateralType> has key {
-        balance: SmartTable<address, DepositBalance<CollateralType>>,
+        deposits: SmartTable<address, DepositBalance<CollateralType>>,
     }
 
     struct DepositBalance<phantom CollateralType> has store {
