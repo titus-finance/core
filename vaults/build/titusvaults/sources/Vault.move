@@ -5,12 +5,20 @@ module titusvaults::Vault {
     use std::smart_table::{Self, SmartTable};
 
     struct Vault <phantom CollateralType> has key {
-        balance: SmartTable<address, DepositBalance<CollateralType>>,
+        deposits: SmartTable<address, DepositBalance<CollateralType>>,
     }
 
     struct DepositBalance<phantom CollateralType> has store {
         balance: Coin<CollateralType>,
     }
+
+    public fun create_vault <CollateralType>(account: &signer) {
+        //TODO: ensure the account that is calling create_vault is authorized to do so
+        // we'll have a vault per strategy, with differing underlying assets, strike prices etc
+        let init_deposits = smart_table::new<address, DepositBalance<CollateralType>>();
+        move_to(account, Vault { deposits: init_deposits });
+    }
+
 
     #[test]
 fun test_deposit() {

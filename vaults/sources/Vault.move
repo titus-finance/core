@@ -12,6 +12,14 @@ module titusvaults::Vault {
         balance: Coin<CollateralType>,
     }
 
+    public fun create_vault <CollateralType>(account: &signer) {
+        //TODO: ensure the account that is calling create_vault is authorized to do so
+        // we'll have a vault per strategy, with differing underlying assets, strike prices etc
+        let init_deposits = smart_table::new<address, DepositBalance<CollateralType>>();
+        move_to(account, Vault { deposits: init_deposits });
+    }
+
+
     #[test]
 fun test_deposit() {
     use aptos_framework::coin;
