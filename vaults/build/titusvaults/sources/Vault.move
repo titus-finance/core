@@ -1,4 +1,4 @@
-module aptvol::Vault {
+module titusvaults::Vault {
     use aptos_framework::coin::{Self, Coin};
     use aptos_framework::aptos_coin::AptosCoin;
     use std::signer;

@@ -1,5 +1,5 @@
 // https://github.com/ribbon-finance/rvol/blob/ee066ee4b612bb3c647b14cc48983045ec475f8c/contracts/libraries/Math.sol
-module aptvol::math {
+module titusvol::math {
     const FIXED_1: u256 = 0x080000000000000000000000000000000;
     const FIXED_2: u256 = 0x100000000000000000000000000000000;
     const SQRT_1: u256 = 13043817825332782212;

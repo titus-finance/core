@@ -1,4 +1,4 @@
-module aptvol::price_feed {
+module titusvol::price_feed {
   // Libraries
   use aptos_framework::account::SignerCapability;
   use aptos_framework::aptos_coin::AptosCoin;
@@ -34,7 +34,7 @@ module aptvol::price_feed {
   }
 
   fun init_module(resource_signer: &signer) {
-    let resource_signer_cap = resource_account::retrieve_resource_account_cap(resource_signer, @aptvol);
+    let resource_signer_cap = resource_account::retrieve_resource_account_cap(resource_signer, @titusvol);
     
     move_to(resource_signer, ModuleData {
       signer_cap: resource_signer_cap,
@@ -45,7 +45,7 @@ module aptvol::price_feed {
   }
 
   public fun get_price(timestamp: u64): u64 acquires ModuleData {
-    let module_data = borrow_global_mut<ModuleData>(@aptvol);
+    let module_data = borrow_global_mut<ModuleData>(@titusvol);
     assert!(table::contains(&module_data.records, timestamp), ENOT_EXISTED);
 
     let result = table::borrow_mut(&mut module_data.records, timestamp);
@@ -66,7 +66,7 @@ module aptvol::price_feed {
     let expo_magnitude = i64::get_magnitude_if_negative(&price::get_expo(&price)); // This will fail if the exponent is positive'
     let apt_price_in_usd = (price_positive * SUFFIX_USD) / pow(10, expo_magnitude);
 
-    let module_data = borrow_global_mut<ModuleData>(@aptvol);
+    let module_data = borrow_global_mut<ModuleData>(@titusvol);
     if (!table::contains(&module_data.records, timestamp)) {
       table::add(&mut module_data.records, timestamp, apt_price_in_usd);
       module_data.last_set_price = apt_price_in_usd;

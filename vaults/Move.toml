@@ -1,9 +1,10 @@
 [package]
-name = "vaults"
+name = "titusvaults"
 version = "1.0.0"
 authors = []
 
 [addresses]
+titusvaults = "0x1"
 
 [dev-addresses]
 
