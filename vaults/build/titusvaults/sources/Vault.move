@@ -1,8 +1,6 @@
 module titusvaults::Vault {
     use aptos_framework::coin::{Self, Coin};
-    use aptos_framework::aptos_coin::AptosCoin;
     use std::signer;
-    use std::account;
     use std::smart_table::{Self, SmartTable};
 
     const E_INVALID_OPERATION: u64 = 69;
