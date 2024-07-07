@@ -60,47 +60,41 @@ module titusvaults::Vault {
         coin::value(&vault.coin_store)
     }
 
-    public (friend) fun deposit_vault<VaultT, AssetT>( account: &signer, _coin: Coin<AssetT>) acquires Vault, VaultMap {
+    public (friend) fun deposit_vault<VaultT, AssetT>( account: &signer, _coin: Coin<AssetT>) acquires CurrentRound, Vault, VaultMap {
         let user_addr = address_of(account);
-        let vault = borrow_global<Vault<VaultT, AssetT>>(@titusvaults);
-        let vault_map = borrow_global<VaultMap<VaultT, AssetT>>(@titusvaults);
-
+        let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
+        let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
+        let current_round = borrow_global<CurrentRound>(@titusvaults);
+        coin::merge(&mut vault.coin_store, _coin);
         if (smart_table::contains(&vault_map.deposits, user_addr)) {
             let current_deposit = smart_table::borrow_mut(&mut vault_map.deposits, user_addr);
-            let new_coin = (_coin); ///Not able to fetch the new coin detail
-            smart_table::upsert(&mut vault_map.deposits, user_addr, Vault<VaultT, AssetT>{
-                coin_store: new_coin,
-                creation_time: timestamp::now_microseconds(),
-                creation_round: CurrentRound.round,
-            });
+            let new_coin = (_coin); ///Not able to fetch and add the new coin detail
+            smart_table::upsert(&mut vault_map.deposits, user_addr, );
         } else {
             smart_table::add(&mut vault_map.deposits, user_addr, Vault<VaultT, AssetT>{
                 coin_store: _coin,
                 creation_time: timestamp::now_microseconds(),
-                creation_round: CurrentRound.round,
+                creation_round: current_round.round,
             });
         };
-        coin::merge(&mut vault.coin_store, _coin);
     }
 
-    public (friend) fun withdraw_vault<VaultT, AssetT>(_amount: u64): Coin<AssetT> acquires Vault {
-        if (CurrentRound.round == 0) {
-            return coin::zero<AssetT>()
-        };
-        let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
-        if (vault.vault_locked == true) {
-            return coin::zero<AssetT>()
-        };
-        coin::extract(&mut vault.coin_store, _amount)
-    }
+    // public (friend) fun withdraw_vault<VaultT, AssetT>(_amount: u64): Coin<AssetT> acquires Vault {
+    //     if (CurrentRound.round == 0) {
+    //         return coin::zero<AssetT>()
+    //     };
+    //     let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
+    //     if (vault.vault_locked == true) {
+    //         return coin::zero<AssetT>()
+    //     };
+    //     coin::extract(&mut vault.coin_store, _amount)
+    // }
 
-
-
-    smart_table::add(&mut locks.locks, recipient, Lock {
-    coins: staked_apt,
-    principal,
-    unlock_time_secs,
-    })
+    // smart_table::add(&mut locks.locks, recipient, Lock {
+    // coins: staked_apt,
+    // principal,
+    // unlock_time_secs,
+    // })
 
 
     // public fun deposit_vault1 <AssetT>(account: &signer) {
