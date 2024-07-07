@@ -11,6 +11,7 @@ module titusvaults::Vault {
     const E_NOT_AUTHORIZED: u64 = 1;
     const E_INVALID_OPERATION: u64 = 2;
     const E_NOT_INSTANT_WITHDRAWAL: u64 = 3;
+    const E_NOT_STANDARD_WITHDRAWAL: u64 = 4;
 
     struct Vault <phantom VaultT, phantom AssetT> has key {
         coin_store: Coin<AssetT>,
@@ -31,10 +32,10 @@ module titusvaults::Vault {
     public entry fun set_current_time(_host: &signer) {
         let host_addr = address_of(_host);
         assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
-        CurrentRound {
+        move_to(_host, CurrentRound {
             intial_time: timestamp::now_microseconds(),
             round: 0,
-        };
+        });
     }
 
     /// to create new vaults for Nth round
@@ -65,7 +66,10 @@ module titusvaults::Vault {
         let user_addr = address_of(account);
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
         let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
+
+        update_current_round();
         let current_round = borrow_global<CurrentRound>(@titusvaults);
+
         coin::merge(&mut vault.coin_store, _coin);
         if (smart_table::contains(&vault_map.deposits, user_addr)) {
             let current_deposit = coin::value(&smart_table::borrow_mut(&mut vault_map.deposits, user_addr).coin_store);
@@ -85,10 +89,12 @@ module titusvaults::Vault {
     }
 
     public (friend) fun instant_withdraw_vault<VaultT, AssetT>(account: &signer, _coin: Coin<AssetT>): Coin<AssetT> acquires CurrentRound, Vault, VaultMap{
-        ///todo Calls the current round function to update the round
         let user_addr = address_of(account);
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
         let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
+
+        ///todo Calls the current round function to update the round
+        update_current_round();
         let current_round = borrow_global<CurrentRound>(@titusvaults);
 
         let current_deposit = coin::value(&smart_table::borrow_mut(&mut vault_map.deposits, user_addr).coin_store);
@@ -102,20 +108,28 @@ module titusvaults::Vault {
     }
 
     public (friend) fun standard_withdraw_vault<VaultT, AssetT>(account: &signer, _coin: Coin<AssetT>): Coin<AssetT> acquires CurrentRound, Vault, VaultMap{
-        ///todo Calls the current round function to update the round
         let user_addr = address_of(account);
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
         let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
+
+        ///todo Calls the current round function to update the round
+        update_current_round();
         let current_round = borrow_global<CurrentRound>(@titusvaults);
 
         let current_deposit = coin::value(&smart_table::borrow_mut(&mut vault_map.deposits, user_addr).coin_store);
-        assert!(current_round.round >= vault.creation_round + 2, E_NOT_INSTANT_WITHDRAWAL);
+        assert!(current_round.round >= vault.creation_round + 2, E_NOT_STANDARD_WITHDRAWAL);
         if (current_deposit == 0) {
             return coin::zero<AssetT>()
         };
         coin::deposit(user_addr, coin::extract(&mut vault.coin_store, coin::value(&_coin)));
         smart_table::remove(&mut vault_map.deposits, user_addr);
         return
+    }
+
+    public fun update_current_round() acquires CurrentRound{
+        let current_round_struct = borrow_global<CurrentRound>(@titusvaults);
+        let new_current_round = timestamp::now_microseconds() - current_round_struct.intial_time/7200;
+        current_round_struct.round = new_current_round;
     }
 
 
