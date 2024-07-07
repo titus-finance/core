@@ -18,5 +18,9 @@ git = 'https://github.com/aptos-labs/aptos-core.git'
 rev = 'main'
 subdir = 'aptos-move/framework/aptos-stdlib'
 
+[dependencies.IntegerMate]
+git = 'https://github.com/titus-finance/integer-mate'
+rev = 'main'
+subdir = 'aptos'
 
 [dev-dependencies]
