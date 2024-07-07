@@ -9,7 +9,8 @@ module titusvaults::Vault {
 
     /// When signer is not owner of module
     const E_NOT_AUTHORIZED: u64 = 1;
-    const E_INVALID_OPERATION: u64 = 69;
+    const E_INVALID_OPERATION: u64 = 2;
+    const E_NOT_INSTANT_WITHDRAWAL: u64 = 3;
 
     struct Vault <phantom VaultT, phantom AssetT> has key {
         coin_store: Coin<AssetT>,
@@ -67,9 +68,13 @@ module titusvaults::Vault {
         let current_round = borrow_global<CurrentRound>(@titusvaults);
         coin::merge(&mut vault.coin_store, _coin);
         if (smart_table::contains(&vault_map.deposits, user_addr)) {
-            let current_deposit = smart_table::borrow_mut(&mut vault_map.deposits, user_addr);
-            let new_coin = (_coin); ///Not able to fetch and add the new coin detail
-            smart_table::upsert(&mut vault_map.deposits, user_addr, );
+            let current_deposit = coin::value(&smart_table::borrow_mut(&mut vault_map.deposits, user_addr).coin_store);
+            let new_coin = current_deposit + coin::value(&_coin); ///Not able to fetch and add the new coin detail
+            smart_table::upsert(&mut vault_map.deposits, user_addr, Vault<VaultT, AssetT>{
+                coin_store: _coin, /// cant mint, how to derive CoinType from a value?
+                creation_time: timestamp::now_microseconds(),
+                creation_round: current_round.round,
+            });
         } else {
             smart_table::add(&mut vault_map.deposits, user_addr, Vault<VaultT, AssetT>{
                 coin_store: _coin,
@@ -79,22 +84,39 @@ module titusvaults::Vault {
         };
     }
 
-    // public (friend) fun withdraw_vault<VaultT, AssetT>(_amount: u64): Coin<AssetT> acquires Vault {
-    //     if (CurrentRound.round == 0) {
-    //         return coin::zero<AssetT>()
-    //     };
-    //     let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
-    //     if (vault.vault_locked == true) {
-    //         return coin::zero<AssetT>()
-    //     };
-    //     coin::extract(&mut vault.coin_store, _amount)
-    // }
+    public (friend) fun instant_withdraw_vault<VaultT, AssetT>(account: &signer, _coin: Coin<AssetT>): Coin<AssetT> acquires CurrentRound, Vault, VaultMap{
+        ///todo Calls the current round function to update the round
+        let user_addr = address_of(account);
+        let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
+        let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
+        let current_round = borrow_global<CurrentRound>(@titusvaults);
 
-    // smart_table::add(&mut locks.locks, recipient, Lock {
-    // coins: staked_apt,
-    // principal,
-    // unlock_time_secs,
-    // })
+        let current_deposit = coin::value(&smart_table::borrow_mut(&mut vault_map.deposits, user_addr).coin_store);
+        assert!(current_round.round == vault.creation_round, E_NOT_INSTANT_WITHDRAWAL);
+        if (current_deposit == 0) {
+            return coin::zero<AssetT>()
+        };
+        coin::deposit(user_addr, coin::extract(&mut vault.coin_store, coin::value(&_coin)));
+        smart_table::remove(&mut vault_map.deposits, user_addr);
+        return
+    }
+
+    public (friend) fun standard_withdraw_vault<VaultT, AssetT>(account: &signer, _coin: Coin<AssetT>): Coin<AssetT> acquires CurrentRound, Vault, VaultMap{
+        ///todo Calls the current round function to update the round
+        let user_addr = address_of(account);
+        let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
+        let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
+        let current_round = borrow_global<CurrentRound>(@titusvaults);
+
+        let current_deposit = coin::value(&smart_table::borrow_mut(&mut vault_map.deposits, user_addr).coin_store);
+        assert!(current_round.round >= vault.creation_round + 2, E_NOT_INSTANT_WITHDRAWAL);
+        if (current_deposit == 0) {
+            return coin::zero<AssetT>()
+        };
+        coin::deposit(user_addr, coin::extract(&mut vault.coin_store, coin::value(&_coin)));
+        smart_table::remove(&mut vault_map.deposits, user_addr);
+        return
+    }
 
 
     // public fun deposit_vault1 <AssetT>(account: &signer) {
