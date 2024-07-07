@@ -9,42 +9,82 @@ module titusvaults::Vault {
 
     /// When signer is not owner of module
     const E_NOT_AUTHORIZED: u64 = 1;
-
     const E_INVALID_OPERATION: u64 = 69;
 
-    /// each users have there own vault modules
     struct Vault <phantom VaultT, phantom AssetT> has key {
         coin_store: Coin<AssetT>,
-        deposit_round: u64,
-        vault_locked: bool
+        creation_time: u64,
+        creation_round: u64,
     }
 
-    struct Vaults <phantom VaultT, phantom AssetT> has key {
+    struct VaultMap <phantom VaultT, phantom AssetT> has key {
         deposits: SmartTable<address, Vault<VaultT, AssetT>>,
+        total_vaults: u64,
+    }
 
+    struct CurrentRound has store {
+        intial_time: u64,
+        round: u64,
+    }
+
+    public entry fun set_current_time(_host: &signer) {
+        let host_addr = address_of(_host);
+        assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
+        CurrentRound {
+            intial_time: timestamp::now_microseconds(),
+            round: 0,
+        };
     }
 
     /// to create new vaults for Nth round
     public fun create_vault<VaultT, AssetT>(_host: &signer) {
         let host_addr = address_of(_host);
         assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
-        if (!exists<Vault<VaultT, AssetT>>(host_addr)) {
+
+        let current_round = CurrentRound.round;
+        if (!exists<VaultMap<VaultT, AssetT>>(host_addr)) {
+            move_to(_host, VaultMap<VaultT, AssetT> {
+                deposits: smart_table::new(),
+                total_vaults: 0,
+            });
             move_to(_host, Vault<VaultT, AssetT> {
                 coin_store: coin::zero(),
-                deposit_round: 0,
-                vault_locked: false,
-                // deposits: SmartTable::add(host_addr, Coin<AssetT>),
+                creation_time: timestamp::now_microseconds(),
+                creation_round: current_round,
             });
         };
     }
 
-    public (friend) fun deposit_vault<VaultT, AssetT>(_coin: Coin<AssetT>) acquires Vault {
+    public fun vault_balance<VaultT, AssetT>(): u64 acquires Vault {
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
+        coin::value(&vault.coin_store)
+    }
+
+    public (friend) fun deposit_vault<VaultT, AssetT>( account: &signer, _coin: Coin<AssetT>) acquires Vault, VaultMap {
+        let user_addr = address_of(account);
+        let vault = borrow_global<Vault<VaultT, AssetT>>(@titusvaults);
+        let vault_map = borrow_global<VaultMap<VaultT, AssetT>>(@titusvaults);
+
+        if (smart_table::contains(&vault_map.deposits, user_addr)) {
+            let current_deposit = smart_table::borrow_mut(&mut vault_map.deposits, user_addr);
+            let new_coin = (_coin); ///Not able to fetch the new coin detail
+            smart_table::upsert(&mut vault_map.deposits, user_addr, Vault<VaultT, AssetT>{
+                coin_store: new_coin,
+                creation_time: timestamp::now_microseconds(),
+                creation_round: CurrentRound.round,
+            });
+        } else {
+            smart_table::add(&mut vault_map.deposits, user_addr, Vault<VaultT, AssetT>{
+                coin_store: _coin,
+                creation_time: timestamp::now_microseconds(),
+                creation_round: CurrentRound.round,
+            });
+        };
         coin::merge(&mut vault.coin_store, _coin);
     }
 
     public (friend) fun withdraw_vault<VaultT, AssetT>(_amount: u64): Coin<AssetT> acquires Vault {
-        if (_amount == 0) {
+        if (CurrentRound.round == 0) {
             return coin::zero<AssetT>()
         };
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
@@ -54,10 +94,14 @@ module titusvaults::Vault {
         coin::extract(&mut vault.coin_store, _amount)
     }
 
-    public fun vault_balance<VaultT, AssetT>(): u64 acquires Vault {
-        let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
-        coin::value(&vault.coin_store)
-    }
+
+
+    smart_table::add(&mut locks.locks, recipient, Lock {
+    coins: staked_apt,
+    principal,
+    unlock_time_secs,
+    })
+
 
     // public fun deposit_vault1 <AssetT>(account: &signer) {
     //     //TODO: ensure the account that is calling create_vault is authorized to do so
@@ -69,7 +113,7 @@ module titusvaults::Vault {
 
     // TODO: this accepts Coin<AssetT> and joins it to the deposit balance
     // but we may want to store balances in global storage instead of the Coins
-    
+
     // public fun deposit<AssetT>(account: &signer, amount: Coin<AssetT>, vault_addr: address) acquires Vault {
     //     let callee_address = signer::address_of(account);
     //     let vault = borrow_global_mut<Vault<AssetT>>(vault_addr);
@@ -103,23 +147,23 @@ module titusvaults::Vault {
     // }
 
 
-// #[test]
-// fun test_deposit() {
-//     use aptos_framework::coin;
-//     use aptos_framework::aptos_coin::AptosCoin;
-//
-//     // Set up the test environment
-//     let account = signer::new_signer(0x1);
-//
-//     // Publish the AptosCoin and Vault resources
-//     coin::initialize<AptosCoin>(&account, 100_000_000);
-//     create_vault(&account);
-//
-//     // Deposit some AptosCoin into the vault
-//     deposit(&account, 10_000);
-//
-//     // Check the balance in the vault
-//     let balance = get_balance(signer::address_of(&account));
-//     assert!(balance == 10_000, 42);
-// }
+    // #[test]
+    // fun test_deposit() {
+    //     use aptos_framework::coin;
+    //     use aptos_framework::aptos_coin::AptosCoin;
+    //
+    //     // Set up the test environment
+    //     let account = signer::new_signer(0x1);
+    //
+    //     // Publish the AptosCoin and Vault resources
+    //     coin::initialize<AptosCoin>(&account, 100_000_000);
+    //     create_vault(&account);
+    //
+    //     // Deposit some AptosCoin into the vault
+    //     deposit(&account, 10_000);
+    //
+    //     // Check the balance in the vault
+    //     let balance = get_balance(signer::address_of(&account));
+    //     assert!(balance == 10_000, 42);
+    // }
 }
