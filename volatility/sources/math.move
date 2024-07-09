@@ -140,5 +140,13 @@ module titusvol::math {
         i256::abs_u256(x)
     }
 
+     #[test]
+     fun test_abs() {
+        use integer_mate::i256;
+        let x: i256::I256 = i256::neg_from(82);
+        let abs_x = abs(x);
+        assert!(abs_x == 82, 0)
+     }
+
 
 }
