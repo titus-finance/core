@@ -140,6 +140,52 @@ module titusvol::math {
         i256::abs_u256(x)
     }
 
+    // normalized cdf
+     public fun ncdf(x: u256): u256 {
+        use integer_mate::i256;
+        let t1: i256::I256 = i256::from(10_000_000+ ((2316419 * x) / FIXED_1));
+        let exp: u256 = ((x / 2) * x) / FIXED_1;
+        let numerator: i256::I256 = i256::from(3989423 * FIXED_1);
+        let divisor: i256::I256 = i256::from(optimalExp(exp));
+        let d: i256::I256 = i256::div(numerator, divisor);
+
+        // we need to split this math:
+        /*
+        uint256 prob =
+            uint256(
+                (d *
+                    (3193815 +
+                        ((-3565638 +
+                            ((17814780 +
+                                ((-18212560 + (13302740 * 1e7) / t1) * 1e7) /
+                                t1) * 1e7) /
+                            t1) * 1e7) /
+                        t1) *
+                    1e7) / t1
+            );*/
+        // because we can't easily type cast between u256 and i256 like in soliditity
+        let operand_1: i256::I256 = i256::from(13302740 * 10_000_000);
+        let operand_2: i256::I256 = i256::neg_from(18212560);
+        let operand_3: i256::I256 = i256::add(operand_1, operand_2);
+        let operand_4: i256::I256 = i256::div(operand_3, t1);
+        let operand_5: i256::I256 = i256::mul(operand_4, i256::from(10_000_000));
+        let sum_one: i256::I256 = i256::add(operand_5, i256::from(17814780));
+        let operand_6: i256::I256 = i256::div(sum_one, t1);
+        let operand_7: i256::I256 = i256::mul(operand_6, i256::from(10_000_000));
+        let sum_two: i256::I256 = i256::add(i256::neg_from(3565638), operand_7);
+        let operand_8: i256::I256 = i256::div(sum_two, t1);
+        let operand_9: i256::I256 = i256::mul(operand_8, i256::from(10_000_000));
+        let sum_three: i256::I256 = i256::add(i256::from(3193815), operand_9);
+        let operand_10: i256::I256 = i256::div(sum_three, t1);
+        let operand_11: i256::I256 = i256::mul(operand_10, i256::from(10_000_000));
+        let operand_12: i256::I256 = i256::mul(operand_11, d);
+        let prob: i256::I256 = i256::div(operand_12, t1);
+        
+
+        if (x > 0) {prob = i256::sub(i256::from(100_000_000_000_000), prob)};
+        i256::as_u256(prob)
+    }
+
      #[test]
      fun test_abs() {
         use integer_mate::i256;
