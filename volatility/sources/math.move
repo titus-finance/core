@@ -194,5 +194,27 @@ module titusvol::math {
         assert!(abs_x == 82, 0)
      }
 
+    #[test]
+    public fun test_ncdf() {
+        use integer_mate::i256;
+
+        let x1: u256 = 0;
+        let x2: u256 = 1_000_000;
+        let x3: u256 = i256::as_u256(i256::neg_from(1_000_000));
+
+        let result1: u256 = ncdf(x1);
+        let result2: u256 = ncdf(x2);
+        let result3: u256 = ncdf(x3);
+
+        // Expected values for the CDF of the standard normal distribution
+        let expected1: u256 = 50000000000000;
+        let expected2: u256 = 84134474600000;
+        let expected3: u256 = 15865525400000;
+
+        assert!(result1 == expected1, 101);
+        assert!(result2 == expected2, 102);
+        assert!(result3 == expected3, 103);
+    }
+
 
 }
