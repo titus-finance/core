@@ -1,5 +1,7 @@
 // https://github.com/ribbon-finance/rvol/blob/ee066ee4b612bb3c647b14cc48983045ec475f8c/contracts/libraries/Math.sol
 module titusvol::math {
+    use integer_mate::i256;
+
     const FIXED_1: u256 = 0x080000000000000000000000000000000;
     const FIXED_2: u256 = 0x100000000000000000000000000000000;
     const SQRT_1: u256 = 13043817825332782212;
@@ -133,5 +135,10 @@ module titusvol::math {
         };
         (res * LOG_E_2) / BASE
     }
+
+    public fun abs(x: i256::I256): u256 {
+        i256::abs_u256(x)
+    }
+
 
 }
