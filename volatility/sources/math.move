@@ -143,7 +143,7 @@ module titusvol::math {
     // normalized cdf
      public fun ncdf(x: u256): u256 {
         use integer_mate::i256;
-        let t1: i256::I256 = i256::from(10_000_000+ ((2316419 * x) / FIXED_1));
+        let t1: i256::I256 = i256::wrapping_add(i256::from(10_000_000), i256::div(i256::mul(i256::from(2316419), i256::from(x)), i256::from(FIXED_1)));
         let exp: u256 = ((x / 2) * x) / FIXED_1;
         let numerator: i256::I256 = i256::from(3989423 * FIXED_1);
         let divisor: i256::I256 = i256::from(optimalExp(exp));

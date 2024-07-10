@@ -15,10 +15,10 @@ compiled_package_info:
     vm: "0000000000000000000000000000000000000000000000000000000000000000"
     vm_reserved: "0000000000000000000000000000000000000000000000000000000000000000"
     wormhole: 5bc11445584a763c1fa7ed39081f1b920954da14e04b32440cba863d03e19625
-  source_digest: 6601CC1DCBDF62523D2B85FB529CBA6A64D747BA8684A47C356577191772F4EA
+  source_digest: FF021AE8EA80AD925D11586211E6AC31277E846042AD9995837C4F5DB0D10AA7
   build_flags:
-    dev_mode: false
-    test_mode: false
+    dev_mode: true
+    test_mode: true
     generate_docs: false
     generate_abis: false
     generate_move_model: true
