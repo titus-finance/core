@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="EMPTY_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/vaults/build" />
+      <excludeFolder url="file://$MODULE_DIR$/volatility/build" />
+      <excludeFolder url="file://$MODULE_DIR$/contract_factory/build" />
+      <excludeFolder url="file://$MODULE_DIR$/contract_factory/coin/build" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
