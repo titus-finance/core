@@ -40,7 +40,7 @@ module titusvaults::Vault {
         });
     }
 
-    entry fun update_current_round(_host: &signer) acquires CurrentRound{
+    entry fun update_round(_host: &signer) acquires CurrentRound{
         let host_addr = address_of(_host);
         assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
 
@@ -71,11 +71,6 @@ module titusvaults::Vault {
                 creation_round: current_round.round,
             });
         };
-    }
-
-    public fun vault_balance<VaultT, AssetT>(): u64 acquires Vault {
-        let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
-        coin::value(&vault.coin_store)
     }
 
     public (friend) fun deposit_vault<VaultT, AssetT>( account: &signer, _coin: Coin<AssetT>) acquires Vault, VaultMap {
@@ -125,6 +120,17 @@ module titusvaults::Vault {
         };
     }
 
+    #[view]
+    public fun current_round(): u64 acquires CurrentRound {
+        let current_round = borrow_global<CurrentRound>(@titusvaults);
+        return current_round.round
+    }
+
+    #[view]
+    public fun vault_balance<VaultT, AssetT>(): u64 acquires Vault {
+        let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
+        return coin::value(&vault.coin_store)
+    }
 
     // #[test]
     // fun test_deposit() {
