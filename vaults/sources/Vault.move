@@ -15,7 +15,7 @@ module titusvaults::Vault {
     const E_NOT_STANDARD_WITHDRAWAL: u64 = 4;
     const E_NOT_ENOUGH_DEPOSIT: u64 = 5;
 
-    struct CurrentRound has key {
+    struct Round has key {
         intial_time: u64,
         round: u64
     }
@@ -49,28 +49,28 @@ module titusvaults::Vault {
     public entry fun set_current_time(_host: &signer) {
         let host_addr = address_of(_host);
         assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
-        move_to(_host, CurrentRound {
+        move_to(_host, Round {
             intial_time: timestamp::now_microseconds(),
             round: 0,
         });
     }
 
-    entry fun update_round(_host: &signer) acquires CurrentRound {
+    entry fun update_round(_host: &signer) acquires Round {
         let host_addr = address_of(_host);
         assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
 
-        let current_round_struct = borrow_global_mut<CurrentRound>(@titusvaults);
+        let current_round_struct = borrow_global_mut<Round>(@titusvaults);
         let new_current_round = (timestamp::now_microseconds() - current_round_struct.intial_time) / 7200;
 
         current_round_struct.round = new_current_round;
     }
 
     /// to create new vaults for Nth round
-    public fun create_vault<VaultT, AssetT>(_host: &signer) acquires CurrentRound {
+    public fun create_vault<VaultT, AssetT>(_host: &signer) acquires CRound {
         let host_addr = address_of(_host);
         assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
 
-        let current_round = borrow_global<CurrentRound>(@titusvaults);
+        let current_round = borrow_global<Round>(@titusvaults);
         if (!exists<VaultMap<VaultT, AssetT>>(host_addr)) {
             move_to(_host, VaultMap<VaultT, AssetT> {
                 deposits: smart_table::new(),
@@ -128,23 +128,24 @@ module titusvaults::Vault {
         event::emit(deposit_vault_event);
     }
 
-    public (friend) fun instant_withdraw_vault<VaultT, AssetT>(account: &signer, amount: u64) acquires CurrentRound, Vault, VaultMap {
+    public (friend) fun instant_withdraw_vault<VaultT, AssetT>(account: &signer, amount: u64) acquires Round, Vault, VaultMap {
         let user_addr = address_of(account);
         let user_shares = *smart_table::borrow(&vault_map.shares, user_addr);
 
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
         let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
 
-        let current_round = borrow_global<CurrentRound>(@titusvaults);
+        let current_round = borrow_global<Round>(@titusvaults);
 
         let current_deposit = *smart_table::borrow(&mut vault_map.deposits, user_addr);
         assert!(current_round.round == vault.creation_round, E_NOT_INSTANT_WITHDRAWAL);
         assert!(current_deposit >= amount, E_NOT_ENOUGH_DEPOSIT);
 
-        // calculate shares to burn
+        // Calculate shares to burn
+        // a = sB / T
         let shares_to_burn = (amount * user_shares) / current_deposit;
   
-        // update user deposit and shares
+        // Update user deposit and shares
         let new_deposit = current_deposit - amount;
         let new_shares = user_shares - shares_to_burn;
 
@@ -172,12 +173,12 @@ module titusvaults::Vault {
         event::emit(instant_withdraw_vault_event);
     }
 
-    public (friend) fun standard_withdraw_vault<VaultT, AssetT>(account: &signer,  amount: u64) acquires CurrentRound, Vault, VaultMap{
+    public (friend) fun standard_withdraw_vault<VaultT, AssetT>(account: &signer,  amount: u64) acquires Round, Vault, VaultMap{
         let user_addr = address_of(account);
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
         let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
 
-        let current_round = borrow_global<CurrentRound>(@titusvaults);
+        let current_round = borrow_global<Round>(@titusvaults);
 
         let current_deposit = *smart_table::borrow(&mut vault_map.deposits, user_addr);
         assert!(current_round.round >= vault.creation_round + 2, E_NOT_STANDARD_WITHDRAWAL);
@@ -189,8 +190,8 @@ module titusvaults::Vault {
     }
 
     #[view]
-    public fun current_round(): u64 acquires CurrentRound {
-        let current_round = borrow_global<CurrentRound>(@titusvaults);
+    public fun current_round(): u64 acquires Round {
+        let current_round = borrow_global<Round>(@titusvaults);
         return current_round.round
     }
 
