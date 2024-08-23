@@ -17,18 +17,27 @@ module titusvaults::Vault {
 
     struct CurrentRound has key {
         intial_time: u64,
-        round: u64,
+        round: u64
     }
 
     struct Vault <phantom VaultT, phantom AssetT> has key {
         coin_store: Coin<AssetT>,
         creation_time: u64,
         creation_round: u64,
+        total_shares: u64
     }
 
     struct VaultMap <phantom VaultT, phantom AssetT> has key {
         deposits: SmartTable<address, u64>,
-        total_vaults: u64,
+        shares: SmartTable<address, u64>,
+        total_vaults: u64
+    }
+
+    // events
+    struct DepositVaultEvent {
+        depositor: address,
+        amount: u64,
+        shares_minted: u64
     }
 
     public entry fun set_current_time(_host: &signer) {
@@ -40,13 +49,13 @@ module titusvaults::Vault {
         });
     }
 
-    entry fun update_round(_host: &signer) acquires CurrentRound{
+    entry fun update_round(_host: &signer) acquires CurrentRound {
         let host_addr = address_of(_host);
         assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
 
         let current_round_struct = borrow_global<CurrentRound>(@titusvaults);
         while (true) {
-            let new_current_round = timestamp::now_microseconds() - current_round_struct.intial_time/7200;
+            let new_current_round = timestamp::now_microseconds() - current_round_struct.intial_time / 7200;
             move_to(_host, CurrentRound{
                 intial_time: current_round_struct.intial_time,
                 round: new_current_round,
@@ -63,12 +72,14 @@ module titusvaults::Vault {
         if (!exists<VaultMap<VaultT, AssetT>>(host_addr)) {
             move_to(_host, VaultMap<VaultT, AssetT> {
                 deposits: smart_table::new(),
+                shares: smart_table::new(),
                 total_vaults: 0,
             });
             move_to(_host, Vault<VaultT, AssetT> {
                 coin_store: coin::zero(),
                 creation_time: timestamp::now_microseconds(),
                 creation_round: current_round.round,
+                total_shares: 0,
             });
         };
     }
@@ -77,15 +88,42 @@ module titusvaults::Vault {
         let user_addr = address_of(account);
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
         let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
+        let coin_value = coin::value(&_coin);
+
+        // mint shares
+        let shares_to_mint = if(vault.total_shares == 0) {
+            // a = s
+            coin_value
+        } else {
+            // aT / B = s
+            (coin_value * vault.total_shares) / coin::value(&vault.coin_store)
+        };
 
         if (smart_table::contains(&vault_map.deposits, user_addr)) {
             let current_deposit = *smart_table::borrow(&mut vault_map.deposits, user_addr);
-            let new_coin = current_deposit + coin::value(&_coin); //Not able to fetch and add the new coin detail
+            let current_shares = *smart_table::borrow(&mut vault_map.shares, user_addr);
+            let new_coin = current_deposit + coin_value; //Not able to fetch and add the new coin detail 
+
             smart_table::upsert(&mut vault_map.deposits, user_addr, new_coin);
+            smart_table::upsert(&mut vault_map.shares, user_addr, current_shares + shares_to_mint);        
         } else {
-            smart_table::add(&mut vault_map.deposits, user_addr, coin::value(&_coin));
+            smart_table::add(&mut vault_map.deposits, user_addr, coin_value);
+            smart_table::add(&mut vault_map.shares, user_addr, shares_to_mint);
         };
+        
+        // update vault total shares
+        vault.total_shares += shares_to_mint;
+
+        // merge deposited coins into the vault coin store
         coin::merge(&mut vault.coin_store, _coin);
+
+        // deposit vault event
+        let deposit_vault_event = DepositVaultEvent {
+            depositor: user_addr,
+            amount: coin_value,
+            shares_minted: shares_to_mint,
+        };
+        event::emit(deposit_vault_event);
     }
 
     public (friend) fun instant_withdraw_vault<VaultT, AssetT>(account: &signer, amount: u64) acquires CurrentRound, Vault, VaultMap{
