@@ -141,11 +141,10 @@ module titusvaults::Vault {
         assert!(current_round.round == vault.creation_round, E_NOT_INSTANT_WITHDRAWAL);
         assert!(current_deposit >= amount, E_NOT_ENOUGH_DEPOSIT);
 
-        // Calculate shares to burn
-        // a = sB / T
+        // calculate shares to burn
         let shares_to_burn = (amount * user_shares) / current_deposit;
   
-        // Update user deposit and shares
+        // update user deposit and shares
         let new_deposit = current_deposit - amount;
         let new_shares = user_shares - shares_to_burn;
 
