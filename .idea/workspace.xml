@@ -48,9 +48,9 @@
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "vault",
     "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "//wsl.localhost/Ubuntu/home/hxriazaka/upwork/titus-finance/core",
+    "last_opened_file_path": "//wsl.localhost/Ubuntu/home/hxriazaka/aptos/vault",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
@@ -85,6 +85,7 @@
       <workItem from="1724375134798" duration="84000" />
       <workItem from="1724375309458" duration="398000" />
       <workItem from="1724375722485" duration="859000" />
+      <workItem from="1724427299640" duration="7630000" />
     </task>
     <servers />
   </component>

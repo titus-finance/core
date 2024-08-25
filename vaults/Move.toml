@@ -1,14 +1,13 @@
 [package]
 name = "titusvaults"
-version = "1.0.1"
-authors = ["satyvm"]
-upgrade_policy = "compatible"
+version = "1.0.0"
+authors = ["0xriazaka"]
 
 [addresses]
 titusvaults = "0xa2bf272177d0723a90cb462bb087309e84554245934445af0da21132ba798b59"
 
 [dev-addresses]
-titusvaults = "0xa2bf272177d0723a90cb462bb087309e84554245934445af0da21132ba798b59"
+
 
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-core.git"
