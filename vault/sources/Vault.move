@@ -38,6 +38,7 @@ module titusvaults::Vault {
         option_creation_time: u64,
         exercise_time: u64,
         close_timestamp: u64,
+        total_amount_deposited: u64,
         timestamps_set: bool
     }
 
@@ -93,6 +94,7 @@ module titusvaults::Vault {
         premium_price: u64
     }
 
+    // init round state
     public entry fun initialize_round_state(_host: &signer) {
         move_to(_host, RoundState {
             round: 0,
@@ -106,6 +108,7 @@ module titusvaults::Vault {
             option_creation_time: 0,
             exercise_time: 0,
             close_timestamp: 0,
+            total_amount_deposited: 0,
             timestamps_set: false
         });
     }
@@ -157,6 +160,7 @@ module titusvaults::Vault {
         };
     }
 
+    // deposit vault
     public (friend) fun deposit_vault<VaultT, AssetT>( account: &signer, _coin: Coin<AssetT>) acquires Vault, VaultMap, RoundState {
         let user_addr = address_of(account);
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
@@ -190,7 +194,10 @@ module titusvaults::Vault {
             smart_table::add(&mut round_state.shares, user_addr, shares_to_mint);
             smart_table::add(&mut round_state.rounds, user_addr, round_state.round);  
         };
-        
+
+        // update total deposit amount in the round state
+        round_state.total_amount_deposited = round_state.total_amount_deposited + coin_value;
+
         // update vault total shares
         vault.total_shares = vault.total_shares + shares_to_mint;
 
@@ -207,6 +214,7 @@ module titusvaults::Vault {
         event::emit(deposit_vault_event);
     }
 
+    // instant withdraw vault
     public (friend) fun instant_withdraw_vault<VaultT, AssetT>(account: &signer, amount: u64) acquires RoundState, Vault, VaultMap {
         let user_addr = address_of(account);
 
@@ -237,6 +245,9 @@ module titusvaults::Vault {
         // perform the coin transfer
         coin::deposit(user_addr, coin::extract(&mut vault.coin_store, amount));
 
+        // update total deposit amount in the round state
+        round_state.total_amount_deposited = round_state.total_amount_deposited - amount;
+
         // update vault total shares
         vault.total_shares = vault.total_shares - shares_to_burn;
 
@@ -254,6 +265,7 @@ module titusvaults::Vault {
         event::emit(instant_withdraw_vault_event);
     }
 
+    // standard withdraw vault
     public (friend) fun standard_withdraw_vault<VaultT, AssetT>(account: &signer,  amount: u64) acquires RoundState, Vault, VaultMap {
         let user_addr = address_of(account);
 
@@ -280,6 +292,9 @@ module titusvaults::Vault {
         
         // perform the coin transfer
         coin::deposit(user_addr, coin::extract(&mut vault.coin_store, amount));
+
+        // update total deposit amount in the round state
+        round_state.total_amount_deposited = round_state.total_amount_deposited - amount;
 
         // update vault total shares
         vault.total_shares = vault.total_shares - shares_to_burn;
