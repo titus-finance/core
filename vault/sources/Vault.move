@@ -2,6 +2,7 @@ module titusvaults::Vault {
     use aptos_framework::coin::{Self, Coin};
     use aptos_framework::event;
     use std::signer::address_of;
+    use std::vector;
     // use aptos_std::big_vector::borrow;
     use aptos_std::smart_table::{Self, SmartTable};
     // use aptos_framework::randomness::u64_integer;
@@ -26,11 +27,9 @@ module titusvaults::Vault {
 
     // --- structs ---
 
-    struct RoundState has key {
-        round: u64,
+    struct RoundState has key, store {
         current_round_id: u64,
         shares: SmartTable<address, u64>,
-        rounds: SmartTable<address, u64>, 
         strike_price: u64,
         premium_price: u64,
         round_start_time: u64,
@@ -39,7 +38,9 @@ module titusvaults::Vault {
         exercise_time: u64,
         close_timestamp: u64,
         total_amount_deposited: u64,
-        timestamps_set: bool
+        total_premium_collected: u64,
+        timestamps_set: bool,
+        is_options_minted: bool,
     }
 
     struct Vault<phantom VaultT, phantom AssetT> has key {
@@ -49,9 +50,15 @@ module titusvaults::Vault {
         total_shares: u64
     }
 
-    struct VaultMap<phantom VaultT, phantom AssetT> has key {
+    struct VaultMap has key {
         deposits: SmartTable<address, u64>,
+        rounds: vector<RoundState>,
         total_rounds: u64
+    }
+
+    struct WithdrawParams has key {
+        round_id: u64,
+        shares_to_burn: u64
     }
 
     // --- events ---
@@ -94,13 +101,19 @@ module titusvaults::Vault {
         premium_price: u64
     }
 
+    #[event]
+    struct MintOptionsEvent has drop, store {
+        round_id: u64,
+        amount: u64,
+        strike_price: u64,
+        premium_price: u64,
+    }
+
     // init round state
     public entry fun initialize_round_state(_host: &signer) {
         move_to(_host, RoundState {
-            round: 0,
             current_round_id: 1,
             shares: smart_table::new(),
-            rounds: smart_table::new(),
             strike_price: 0,
             premium_price: 0,
             round_start_time: 0,
@@ -109,33 +122,47 @@ module titusvaults::Vault {
             exercise_time: 0,
             close_timestamp: 0,
             total_amount_deposited: 0,
-            timestamps_set: false
+            total_premium_collected: 0,
+            timestamps_set: false,
+            is_options_minted: false
         });
     }
     
     // keeper functions
-    public fun update_round_from_keeper<VaultT, AssetT>(_host: &signer) acquires RoundState, VaultMap {
+    public fun update_round_from_keeper(_host: &signer) acquires RoundState, VaultMap {
         let host_addr = signer::address_of(_host);
+        let round_state = borrow_global_mut<RoundState>(@titusvaults);
+        let vault_map = borrow_global_mut<VaultMap>(@titusvaults);
 
-        // perform the state update
-        let state = borrow_global_mut<RoundState>(@titusvaults);
-        let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
-        state.current_round_id = state.current_round_id + 1;
-        vault_map.total_rounds = vault_map.total_rounds + 1;
+        let current_time = timestamp::now_microseconds();
+        let new_round = round_state.current_round_id + 1;
 
-        // calculate the new round timestamps
-        // set the timestamps only if they haven't been set already
-        if (!state.timestamps_set) {
-            state.deposit_start_time = timestamp::now_microseconds();
-            state.option_creation_time = state.deposit_start_time + DEPOSIT_PHASE_DURATION;
-            state.exercise_time = state.option_creation_time + OPTION_EXPIRY_DURATION;
-            state.close_timestamp = state.exercise_time + EXERCISE_BUFFER;
-            state.timestamps_set = true;
+        // Create a new RoundState for the new round (e.g., Round ID 2)
+        let new_round = RoundState {
+            current_round_id: new_round,
+            shares: smart_table::new(),
+            strike_price: round_state.strike_price,
+            premium_price: round_state.premium_price,
+            round_start_time: current_time,
+            deposit_start_time: current_time,
+            option_creation_time: current_time + DEPOSIT_PHASE_DURATION,
+            exercise_time: current_time + DEPOSIT_PHASE_DURATION + OPTION_EXPIRY_DURATION,
+            close_timestamp: current_time + DEPOSIT_PHASE_DURATION + OPTION_EXPIRY_DURATION + EXERCISE_BUFFER,
+            total_amount_deposited: round_state.total_amount_deposited,
+            total_premium_collected: round_state.total_premium_collected,
+            timestamps_set: true,
+            is_options_minted: round_state.is_options_minted
         };
+
+        // Add the new RoundState to the rounds vector
+        vector::push_back(&mut vault_map.rounds, new_round);
+
+        // Update the total number of rounds
+        vault_map.total_rounds = vault_map.total_rounds + 1;
 
         // round update event
         let update_event = RoundUpdatedEvent {
-            new_round_id: state.current_round_id,
+            new_round_id: round_state.current_round_id,
         };
         event::emit(update_event);
     }
@@ -146,15 +173,16 @@ module titusvaults::Vault {
         assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
 
         let current_round = borrow_global<RoundState>(@titusvaults);
-        if (!exists<VaultMap<VaultT, AssetT>>(host_addr)) {
-            move_to(_host, VaultMap<VaultT, AssetT> {
+        if (!exists<VaultMap>(host_addr)) {
+            move_to(_host, VaultMap {
                 deposits: smart_table::new(),
+                rounds: vector::empty<RoundState>(),
                 total_rounds: 0
             });
             move_to(_host, Vault<VaultT, AssetT> {
                 coin_store: coin::zero(),
                 creation_time: timestamp::now_microseconds(),
-                creation_round: current_round.round,
+                creation_round: current_round.current_round_id,
                 total_shares: 0
             });
         };
@@ -164,7 +192,7 @@ module titusvaults::Vault {
     public (friend) fun deposit_vault<VaultT, AssetT>( account: &signer, _coin: Coin<AssetT>) acquires Vault, VaultMap, RoundState {
         let user_addr = address_of(account);
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
-        let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
+        let vault_map = borrow_global_mut<VaultMap>(@titusvaults);
         let round_state = borrow_global_mut<RoundState>(@titusvaults);
         let coin_value = coin::value(&_coin);
 
@@ -192,7 +220,6 @@ module titusvaults::Vault {
         } else {
             smart_table::add(&mut vault_map.deposits, user_addr, coin_value);
             smart_table::add(&mut round_state.shares, user_addr, shares_to_mint);
-            smart_table::add(&mut round_state.rounds, user_addr, round_state.round);  
         };
 
         // update total deposit amount in the round state
@@ -209,7 +236,7 @@ module titusvaults::Vault {
             depositor: user_addr,
             amount: coin_value,
             shares_minted: shares_to_mint,
-            round: round_state.round
+            round: round_state.current_round_id
         };
         event::emit(deposit_vault_event);
     }
@@ -220,7 +247,7 @@ module titusvaults::Vault {
 
         let round_state = borrow_global_mut<RoundState>(@titusvaults);
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
-        let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
+        let vault_map = borrow_global_mut<VaultMap>(@titusvaults);
         let user_shares = *smart_table::borrow(&round_state.shares, user_addr);
 
         // assert we are during the deposit phase
@@ -229,7 +256,7 @@ module titusvaults::Vault {
         assert!(current_time <= deposit_end_time, E_NOT_DEPOSIT_PHASE);
 
         let current_deposit = *smart_table::borrow(&mut vault_map.deposits, user_addr);
-        assert!(round_state.round == vault.creation_round, E_NOT_INSTANT_WITHDRAWAL);
+        assert!(round_state.current_round_id == vault.creation_round, E_NOT_INSTANT_WITHDRAWAL);
         assert!(current_deposit >= amount, E_NOT_ENOUGH_DEPOSIT);
 
         // calculate shares to burn
@@ -271,13 +298,13 @@ module titusvaults::Vault {
 
         let round_state = borrow_global_mut<RoundState>(@titusvaults);
         let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
-        let vault_map = borrow_global_mut<VaultMap<VaultT, AssetT>>(@titusvaults);
+        let vault_map = borrow_global_mut<VaultMap>(@titusvaults);
         let user_shares = *smart_table::borrow(&round_state.shares, user_addr);
 
         let current_deposit = *smart_table::borrow(&mut vault_map.deposits, user_addr);
 
         // assert that standard withdrawal can only occur after the execution phase
-        assert!(round_state.round >= vault.creation_round + 2, E_NOT_STANDARD_WITHDRAWAL);
+        assert!(round_state.current_round_id >= vault.creation_round + 2, E_NOT_STANDARD_WITHDRAWAL);
         assert!(current_deposit >= amount, E_NOT_ENOUGH_DEPOSIT);
 
         // calculate shares to burn
@@ -327,6 +354,7 @@ module titusvaults::Vault {
 
         state.strike_price = new_strike_price;
 
+        // strike price updated event
         let strike_price_updated_event = StrikePriceUpdatedEvent {
             round_id: state.current_round_id,
             strike_price: new_strike_price
@@ -349,6 +377,7 @@ module titusvaults::Vault {
 
         state.premium_price = new_premium_price;
 
+        // premium price updated event
         let premium_price_updated_event = PremiumPriceUpdatedEvent {
             round_id: state.current_round_id,
             premium_price: new_premium_price
@@ -356,11 +385,108 @@ module titusvaults::Vault {
         event::emit(premium_price_updated_event);
     }
 
+    public (friend) fun executeRound<VaultT, AssetT>(_host: &signer, round_id: u64) acquires RoundState, VaultMap, Vault {
+
+        let vault_map = borrow_global_mut<VaultMap>(@titusvaults);
+        
+        {
+            let state = borrow_global_mut<RoundState>(@titusvaults);
+            let current_round_id = state.current_round_id;
+            // exercise the previous round
+            let prev_round_id = current_round_id - 1;
+            exerciseRound(_host, prev_round_id);
+        };
+
+        {
+            let state = borrow_global_mut<RoundState>(@titusvaults);
+            // mint options for the current round
+            mintOptionsForRound<VaultT, AssetT>(_host, state.current_round_id);
+        };
+
+        {
+            let state = borrow_global_mut<RoundState>(@titusvaults);
+            // increment the current round ID
+            state.current_round_id = state.current_round_id + 1;
+            vault_map.total_rounds = vault_map.total_rounds + 1;
+
+            // start deposit for the new round
+            startDepositForRound(_host, state.current_round_id);
+        }
+
+    }
+    
+    // exercise round
+    public (friend) fun exerciseRound(_host: &signer, round_id: u64) {
+        let host_addr = address_of(_host);
+        assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
+        // ....
+    }
+
+    // mint option for the round
+    public (friend) fun mintOptionsForRound<VaultT, AssetT>(_host: &signer, round_id: u64) acquires RoundState, Vault {
+        let host_addr = address_of(_host);
+        assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
+
+        let state = borrow_global_mut<RoundState>(@titusvaults);
+        let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
+
+        // assert the round ID is valid and the options have not already been minted
+        assert!(round_id == state.current_round_id, E_INVALID_OPERATION);
+        assert!(!state.is_options_minted, E_INVALID_OPERATION);
+
+        // assert that the asset deposited in the round is not 0
+        assert!(state.total_amount_deposited > 0, E_INVALID_OPERATION);
+
+        // assert that the round is in the active phase (after the deposit phase)
+        let current_time = timestamp::now_microseconds();
+        let active_phase_start_time = state.deposit_start_time + DEPOSIT_PHASE_DURATION;
+        assert!(current_time >= active_phase_start_time, E_INVALID_OPERATION);
+
+        // assert that the strike price and premium set on the vault are not older than 1 minute
+        let strike_premium_validity_time = state.round_start_time + 60000000; // + 1 minute in microseconds
+        assert!(current_time <= strike_premium_validity_time, E_INVALID_OPERATION);
+
+        // mint the options using the underlying asset
+        //----
+        // mechanism to mint options....
+        //----
+
+        // mark the options as minted
+        state.is_options_minted = true;
+
+        // minting options event
+        let mint_options_event = MintOptionsEvent {
+            round_id: state.current_round_id,
+            amount: state.total_amount_deposited,
+            strike_price: state.strike_price,
+            premium_price: state.premium_price,
+        };
+        event::emit(mint_options_event);
+    }
+
+    // start deposit for the round
+    public (friend) fun startDepositForRound(_host: &signer, round_id: u64) acquires RoundState {
+        let host_addr = address_of(_host);
+        assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
+
+        let state = borrow_global_mut<RoundState>(@titusvaults);
+
+        // assert the round ID is valid
+        assert!(round_id == state.current_round_id, E_INVALID_OPERATION);
+
+        // initialize the round state
+        let current_time = timestamp::now_microseconds();
+        let round_start_time = current_time;
+        let active_phase_end_time = round_start_time + DEPOSIT_PHASE_DURATION;
+
+    }  
+
+
     // --- views functions ---
     #[view]
     public fun current_round(): u64 acquires RoundState {
         let current_round = borrow_global<RoundState>(@titusvaults);
-        return current_round.round
+        return current_round.current_round_id
     }
 
     #[view]
@@ -385,7 +511,7 @@ module titusvaults::Vault {
     }
 
     // test vault created
-    #[test(titusvaults = @0xa2bf272177d0723a90cb462bb087309e84554245934445af0da21132ba798b59, user = @0x2)]
+    #[test(titusvaults = @titusvaults, user = @0x2)]
     fun test_vault(titusvaults: &signer, user: &signer) acquires RoundState {
         setup();
 
@@ -400,7 +526,7 @@ module titusvaults::Vault {
     }
 
     // test deposit
-    #[test(titusvaults = @0xa2bf272177d0723a90cb462bb087309e84554245934445af0da21132ba798b59, user = @0x2)]
+    #[test(titusvaults = @titusvaults, user = @0x2)]
     fun test_deposit(titusvaults: &signer, user: signer) acquires Vault, VaultMap, RoundState {
         setup();
 
@@ -429,7 +555,7 @@ module titusvaults::Vault {
     }
 
     // test instant withdraw vault
-    #[test(titusvaults = @0xa2bf272177d0723a90cb462bb087309e84554245934445af0da21132ba798b59, user = @0x2)]
+    #[test(titusvaults = @titusvaults, user = @0x2)]
     fun test_instant_withdraw_vault(titusvaults: &signer, user: signer) acquires RoundState, Vault, VaultMap {
         setup();
 
@@ -464,7 +590,7 @@ module titusvaults::Vault {
     }
 
     // test standard withdraw vault
-    #[test(titusvaults = @0xa2bf272177d0723a90cb462bb087309e84554245934445af0da21132ba798b59, user = @0x2)]
+    #[test(titusvaults = @titusvaults, user = @0x2)]
     // expected failure because of timing restriction
     #[expected_failure]
     fun test_standard_withdraw_vault(titusvaults: &signer, user: signer) acquires RoundState, Vault, VaultMap {
