@@ -407,7 +407,6 @@ module titusvaults::Vault {
             let state = borrow_global_mut<RoundState>(@titusvaults);
             // increment the current round ID
             state.current_round_id = state.current_round_id + 1;
-            vault_map.total_rounds = vault_map.total_rounds + 1;
 
             // start deposit for the new round
             startDepositForRound(_host, state.current_round_id);
