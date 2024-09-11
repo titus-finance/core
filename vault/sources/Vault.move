@@ -153,25 +153,29 @@ module titusvaults::Vault {
     // keeper functions
     public fun update_round_from_keeper( _host: &signer, round_id: u64 ) acquires VaultMap {
         let host_addr = signer::address_of(_host);
+        let current_time = timestamp::now_microseconds();
+
         let vault_map = borrow_global_mut<VaultMap>(@titusvaults);
 
         assert!(vector::length(&vault_map.rounds) >= round_id, E_INVALID_OPERATION);
 
         let round_index = round_id - 1;
-        let round_state = vector::borrow_mut(&mut vault_map.rounds, round_index); 
 
-        let current_time = timestamp::now_microseconds();
-        let new_round = round_state.current_round_id + 1;
+        let round_state = vector::borrow_mut(&mut vault_map.rounds, round_index);
+        let new_round_id = round_state.current_round_id + 1;
+        let strike_price = round_state.strike_price;
+        let premium_price = round_state.premium_price;      
 
+        let deposit_start_time = current_time;
         // create a new RoundState for the new round 
         //(e.g., if we are on first round id = 1, we create new round "second round" with secondroundid = firstroundid + 1)
         let new_round = RoundState {
-            current_round_id: new_round,
+            current_round_id: new_round_id,
             shares: smart_table::new(),
-            strike_price: round_state.strike_price,
-            premium_price: round_state.premium_price,
+            strike_price: strike_price,
+            premium_price: premium_price,
             round_start_time: current_time,
-            deposit_start_time: current_time,
+            deposit_start_time: deposit_start_time,
             option_creation_time: current_time + DEPOSIT_PHASE_DURATION,
             exercise_time: current_time + DEPOSIT_PHASE_DURATION + OPTION_EXPIRY_DURATION,
             close_timestamp: current_time + DEPOSIT_PHASE_DURATION + OPTION_EXPIRY_DURATION + EXERCISE_BUFFER,
@@ -190,7 +194,7 @@ module titusvaults::Vault {
 
         // round update event
         let update_event = RoundUpdatedEvent {
-            new_round_id: round_state.current_round_id,
+            new_round_id: new_round_id,
         };
         event::emit(update_event);
     }
