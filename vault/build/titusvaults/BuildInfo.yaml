@@ -12,7 +12,7 @@ compiled_package_info:
     titusvaults: a2bf272177d0723a90cb462bb087309e84554245934445af0da21132ba798b59
     vm: "0000000000000000000000000000000000000000000000000000000000000000"
     vm_reserved: "0000000000000000000000000000000000000000000000000000000000000000"
-  source_digest: 167DE88486068818F9F764198861B07AA1C1118CD9A54ED42750D3368F7EA14C
+  source_digest: BABFA04DD57BC0EA1D09DAA6580E37644C0A33C48097B066A24173E9DD70898F
   build_flags:
     dev_mode: true
     test_mode: true
@@ -37,6 +37,7 @@ compiled_package_info:
         - "fmt::skip"
         - legacy_entry_fun
         - "lint::allow_unsafe_randomness"
+        - "lint::skip"
         - native_interface
         - randomness
         - resource_group
@@ -48,7 +49,8 @@ compiled_package_info:
       skip_attribute_checks: false
       compiler_version: ~
       language_version: ~
-      experiments: []
+      experiments:
+        - optimize=on
 dependencies:
   - AptosFramework
   - AptosStdlib
