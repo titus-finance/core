@@ -1,0 +1,24 @@
+[package]
+name = 'OptionsFactory'
+version = '0.1.0'
+upgrade_policy = "compatible"
+
+[addresses]
+deployer = "0x52746eee4d2ecc79f940f617d1e98f885467c185e93a444bc6231a8b1960c48a"
+aux = "0xea383dc2819210e6e427e66b2b6aa064435bf672dc4bdc55018049f0c361d01a"
+admin = "f1d1af27c5520402c6ec6138f39041953f2123e44513a8ce0bc71b8a9790487b"
+options_factory = "0x1234"
+# admin-dev = "0x926229c5805a05c3234c56cd090c9b5188cf1c4ee1a9fca2898c84e510be041b"
+
+[dependencies.AptosFramework]
+git = 'https://github.com/aptos-labs/aptos-core.git'
+rev = 'mainnet'
+subdir = 'aptos-move/framework/aptos-framework'
+
+[dependencies.AptosToken]
+git = 'https://github.com/aptos-labs/aptos-core.git'
+rev = 'mainnet'
+subdir = 'aptos-move/framework/aptos-token'
+
+[dependencies.aux]
+local = "./auxexch"

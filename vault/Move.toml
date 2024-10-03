@@ -15,4 +15,7 @@ git = "https://github.com/aptos-labs/aptos-core.git"
 rev = "mainnet"
 subdir = "aptos-move/framework/aptos-framework"
 
+[dependencies.OptionsFactory]
+local = "./options-factory"
+
 [dev-dependencies]
