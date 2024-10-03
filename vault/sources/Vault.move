@@ -3,15 +3,19 @@ module titusvaults::Vault {
     use aptos_framework::event;
     use std::signer::address_of;
     use std::vector;
+    use std::string;
+    use std::string::String;
     // use aptos_std::big_vector::borrow;
     use aptos_std::smart_table::{Self, SmartTable};
     // use aptos_framework::randomness::u64_integer;
     use aptos_framework::timestamp;
+    use options_factory::controller;
 
     // --- phases ---
     const DEPOSIT_PHASE_DURATION: u64 = 7200000000; // 2 hours
     const OPTION_EXPIRY_DURATION: u64 = 7200000000; // 2 hours
     const EXERCISE_BUFFER: u64 = 3600000000; // 1 hour 
+    const MATURITY: u64 = 7200000000; // random, 2 hour
 
 
     // --- errors ---
@@ -110,6 +114,20 @@ module titusvaults::Vault {
         premium_price: u64,
     }
 
+    #[event]
+    struct SettleOptionsEvent has drop, store {
+        round_id: u64,
+        token_name: String,
+        balance: u64,
+    }
+
+    #[event]
+    struct CloseOptionsEvent has drop, store {
+        round_id: u64,
+        plus_token_name: String,
+        minus_token_name: String,
+        balance: u64,
+    }
     // init first round state
     public entry fun initialize_round_state<VaultT, AssetT>( _host: &signer ) acquires VaultMap {
         let host_addr = address_of(_host);
@@ -460,7 +478,7 @@ module titusvaults::Vault {
             let current_round_id = round_state.current_round_id;
             // exercise the previous round
             let prev_round_id = current_round_id - 1;
-            exerciseRound(_host, prev_round_id);
+            exerciseRound<VaultT, AssetT>(_host, prev_round_id);
         };
 
         {
@@ -488,10 +506,33 @@ module titusvaults::Vault {
     }
     
     // exercise round
-    public (friend) fun exerciseRound(_host: &signer, round_id: u64) {
+    public (friend) fun exerciseRound<VaultT, AssetT>(_host: &signer, round_id: u64) acquires VaultMap, Vault{
         let host_addr = address_of(_host);
         assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
-        // ....
+        
+        let vault_map = borrow_global_mut<VaultMap>(@titusvaults);
+        let vault = borrow_global_mut<Vault<VaultT, AssetT>>(@titusvaults);
+
+        // round state
+        let round_index = round_id - 1;
+        let round_state = vector::borrow_mut(&mut vault_map.rounds, round_index);
+
+        // assert that we are in the exercise phase
+        let current_time = timestamp::now_microseconds();
+        assert!(current_time >= round_state.exercise_time && current_time <= round_state.close_timestamp, E_INVALID_OPERATION);
+
+        //settle options
+        let token_name = string::utf8(b"token_name");
+        let balance = 100;
+
+        controller::settle_options(_host, token_name, balance);
+
+        let settle_options_event = SettleOptionsEvent {
+            round_id: round_id,
+            token_name: token_name,
+            balance: balance
+        };
+        event::emit(settle_options_event);
     }
 
     // mint option for the round
@@ -522,9 +563,12 @@ module titusvaults::Vault {
         assert!(current_time <= strike_premium_validity_time, E_INVALID_OPERATION);
 
         // mint the options using the underlying asset
-        //----
-        // mechanism to mint options....
-        //----
+        let strike_price = second_round_state.strike_price;
+        let is_call = true;
+        let balance = second_round_state.total_amount_deposited;
+        let last_price_at_maturity = second_round_state.premium_price;
+
+        controller::issue_options(_host, MATURITY, strike_price, is_call, balance, last_price_at_maturity);
 
         // mark the options as minted
         second_round_state.is_options_minted = true;
@@ -559,6 +603,31 @@ module titusvaults::Vault {
 
     }  
 
+    public (friend) fun closeOptionsForRound(_host: &signer, round_id: u64, plus_token_name: String, minus_token_name: String, balance: u64) acquires VaultMap {
+        let host_addr = address_of(_host);
+        assert!(host_addr == @titusvaults, E_NOT_AUTHORIZED);
+
+        let vault_map = borrow_global_mut<VaultMap>(@titusvaults);
+        let round_index = round_id - 1;
+        let round_state = vector::borrow_mut(&mut vault_map.rounds, round_index);
+
+        // ensure the round is active and options can be closed
+        let current_time = timestamp::now_microseconds();
+        let active_phase_end_time = round_state.option_creation_time + OPTION_EXPIRY_DURATION;
+        assert!(current_time <= active_phase_end_time, E_INVALID_OPERATION);
+
+        // close_options
+        controller::close_options(_host, plus_token_name, minus_token_name, balance);       
+
+        // close options event
+        let close_options_event = CloseOptionsEvent {
+            round_id: round_id,
+            plus_token_name: plus_token_name,
+            minus_token_name: minus_token_name,
+            balance: balance
+        };
+        event::emit(close_options_event);
+    }
 
     // --- views functions ---
     #[view]
