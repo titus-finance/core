@@ -1,0 +1,11 @@
+[package]
+name = "solicy-vault"
+version = "1.0.0"
+authors = []
+
+
+[addresses]
+SolicyAdminAddress="aa2e712ba9f2f0ac7ef45ae8a32279e0ddd6e4d329c83d252c376249eef19434"
+
+[dependencies]
+AptosFramework = { local = "/Users/asadali/aptos-core/aptos-move/framework/aptos-framework" }
